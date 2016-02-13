@@ -129,6 +129,8 @@ public class LOGOServer {
 			} else if (input.matches("^exit;x$")) {
 				System.exit(0);
 				response = "Exiting";
+			} else if (input.matches("^ping;x$")) {
+				response = "pong";
 			} else {
 				response = "Invalid input: " + input;
 			}
