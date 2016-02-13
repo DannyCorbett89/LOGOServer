@@ -1,0 +1,34 @@
+<project name="LOGOServer" default="dist" basedir="..">
+	<description>
+		simple example build file
+	</description>
+	<!-- set global properties for this build -->
+	<property name="src" location="src" />
+	<property name="build" location="bin" />
+	<property name="dist" location="dist" />
+	<property name="jar.file" value="${dist}/LOGOServer.jar"/>
+
+	<path id="cp">
+		<pathelement location="lib/pi4j-core.jar" />
+	</path>
+
+	<target name="compile" description="compile the source">
+		<!-- Create the build directory structure used by compile -->
+		<mkdir dir="${build}" />
+		<mkdir dir="${dist}"/>
+		
+		<!-- Compile the java code from ${src} into ${build} -->
+		<javac srcdir="${src}" destdir="${build}" classpathref="cp" />
+	</target>
+	
+	<target name="dist" depends="compile" description="generate the distribution">
+		<jar jarfile="${jar.file}" basedir="${build}">
+			<manifest>
+				<attribute name="Main-Class" value="com.dc.logoserver.LOGOServer" />
+				<attribute name="Class-Path" value="lib/pi4j-core.jar" />
+			</manifest>
+		</jar>
+		<scp file="${jar.file}" todir="pi:raspberry@192.168.1.3:/home/pi"
+			trust="true" />
+	</target>
+</project>
