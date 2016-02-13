@@ -130,6 +130,16 @@ public class LOGOServer {
 				System.exit(0);
 				response = "Exiting";
 			} else if (input.matches("^ping;x$")) {
+				in1.high();
+				in2.high();
+				in3.high();
+				in4.high();
+				Thread.sleep(1000);
+				in1.low();
+				in2.low();
+				in3.low();
+				in4.low();
+
 				response = "pong";
 			} else {
 				response = "Invalid input: " + input;
