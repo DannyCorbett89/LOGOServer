@@ -17,7 +17,9 @@ import com.pi4j.io.gpio.RaspiPin;
 
 public class LOGOServer {
 	public static void main(String[] args) throws IOException, InterruptedException {
-		ServerSocket serverSocket = new ServerSocket(83);
+		int port = 83;
+		ServerSocket serverSocket = new ServerSocket(port);
+		System.out.println("Opening socket on port " + port);
 		boolean listen = true;
 
 		GpioController gpio = GpioFactory.getInstance();
@@ -26,6 +28,27 @@ public class LOGOServer {
 		GpioPinDigitalOutput in3 = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_28);
 		GpioPinDigitalOutput in4 = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_29);
 		Map<String, GpioPinDigitalOutput> pins = new HashMap<String, GpioPinDigitalOutput>();
+
+		pins.put(in1.getName(), in1);
+		pins.put(in2.getName(), in2);
+		pins.put(in3.getName(), in3);
+		pins.put(in4.getName(), in4);
+
+		in1.high();
+		Thread.sleep(500);
+		in2.high();
+		Thread.sleep(500);
+		in3.high();
+		Thread.sleep(500);
+		in4.high();
+		Thread.sleep(500);
+		in1.low();
+		Thread.sleep(500);
+		in2.low();
+		Thread.sleep(500);
+		in3.low();
+		Thread.sleep(500);
+		in4.low();
 
 		while (listen) {
 			Socket connection = serverSocket.accept();
@@ -41,6 +64,7 @@ public class LOGOServer {
 
 			String input = process.toString().toLowerCase();
 			String response;
+			System.out.println("Input: " + input);
 
 			if (input.matches("^((fd|rt|lt) [0-9]+;)+x$")) {
 				int lastSemiColon = input.lastIndexOf(";");
@@ -48,8 +72,8 @@ public class LOGOServer {
 
 				for (String command : commands) {
 					System.out.println("Executing command: " + command);
-					int speed = 1;
-					int distance = Integer.parseInt(command.split(" ")[1]) * 100;
+					int speed = 2;
+					int distance = Integer.parseInt(command.split(" ")[1]) * 10;
 
 					// Make sure all inputs are off before we send the signal
 					in1.low();
@@ -102,6 +126,9 @@ public class LOGOServer {
 
 				response = pinName + " toggled successfully";
 				System.out.println(response);
+			} else if (input.matches("^exit;x$")) {
+				System.exit(0);
+				response = "Exiting";
 			} else {
 				response = "Invalid input: " + input;
 			}
