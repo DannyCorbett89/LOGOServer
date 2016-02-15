@@ -7,21 +7,19 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashMap;
-import java.util.Map;
 
-import com.pi4j.io.gpio.GpioController;
-import com.pi4j.io.gpio.GpioFactory;
-import com.pi4j.io.gpio.GpioPinDigitalOutput;
-import com.pi4j.io.gpio.RaspiPin;
+import com.dc.logoserver.robot.LOGORobot;
+import com.dc.logoserver.robot.PrintRobot;
+import com.dc.logoserver.robot.Robot;
+import com.dc.logoserver.robot.pinstates.PingSequence;
+import com.dc.logoserver.robot.pinstates.StartupSequence;
 
 /**
  * Server Application. Listens to commands from the client and processes them
  */
 public class LOGOServer {
 	protected ServerSocket serverSocket;
-	protected GpioController gpio;
-	protected Map<String, GpioPinDigitalOutput> pins;
+	protected Robot robot;
 
 	/**
 	 * Creates a new Socket on the specified port
@@ -32,33 +30,29 @@ public class LOGOServer {
 	 *             If there is a problem opening the port
 	 */
 	public LOGOServer(int port) throws IOException {
-		serverSocket = new ServerSocket(port);
-		System.out.println("Opening socket on port " + port);
-
-		gpio = GpioFactory.getInstance();
-		pins = new HashMap<String, GpioPinDigitalOutput>();
+		this(port, true);
 	}
 
 	/**
-	 * Gets a pin with the specified number. Pins are cached, so this method can
-	 * be called as many times as needed
+	 * Creates a new Socket on the specified port
 	 * 
-	 * @param number
-	 *            Number of the pin to get
-	 * @return The pin which was requested
+	 * @param port
+	 *            Port to be opened
+	 * @param useRobot
+	 *            Switches between sending commands to the robot, or printing
+	 *            them out to the screen
+	 * @throws IOException
+	 *             If there is a problem opening the port
 	 */
-	public GpioPinDigitalOutput getPin(int number) {
-		String pinName = "GPIO " + number;
-		GpioPinDigitalOutput pin;
+	public LOGOServer(int port, boolean useRobot) throws IOException {
+		serverSocket = new ServerSocket(port);
+		System.out.println("Opening socket on port " + port);
 
-		if (pins.containsKey(pinName)) {
-			pin = pins.get(pinName);
+		if (useRobot) {
+			robot = new LOGORobot();
 		} else {
-			pin = gpio.provisionDigitalOutputPin(RaspiPin.getPinByName(pinName));
-			pins.put(pin.getName(), pin);
+			robot = new PrintRobot();
 		}
-
-		return pin;
 	}
 
 	/**
@@ -73,28 +67,10 @@ public class LOGOServer {
 	 */
 	public void start() throws InterruptedException, IOException {
 		boolean listen = true;
-		GpioPinDigitalOutput in1 = getPin(23);
-		GpioPinDigitalOutput in2 = getPin(27);
-		GpioPinDigitalOutput in3 = getPin(28);
-		GpioPinDigitalOutput in4 = getPin(29);
 
 		// Turn each pin on, then turn each pin off, to show they are all
 		// connected properly
-		in1.high();
-		Thread.sleep(500);
-		in2.high();
-		Thread.sleep(500);
-		in3.high();
-		Thread.sleep(500);
-		in4.high();
-		Thread.sleep(500);
-		in1.low();
-		Thread.sleep(500);
-		in2.low();
-		Thread.sleep(500);
-		in3.low();
-		Thread.sleep(500);
-		in4.low();
+		robot.execute(new StartupSequence(), 500);
 
 		while (listen) {
 			Socket connection = serverSocket.accept();
@@ -119,40 +95,25 @@ public class LOGOServer {
 				for (String command : commands) {
 					System.out.println("Executing command: " + command);
 					int speed = 2;
-					int distance = Integer.parseInt(command.split(" ")[1]) * 10;
+					String[] parts = command.split(" ");
+					int distance = Integer.parseInt(parts[1]) * 10;
 
-					// Make sure all inputs are off before we send the signal
-					in1.low();
-					in2.low();
-					in3.low();
-					in4.low();
+					String direction = parts[0];
 
-					in4.high();
-					for (int x = 0; x < distance; x++) {
-						System.out.println("Loop " + x);
-						Thread.sleep(speed);
-						in3.high();
-						Thread.sleep(speed);
-						in4.low();
-						Thread.sleep(speed);
-						in2.high();
-						Thread.sleep(speed);
-						in3.low();
-						Thread.sleep(speed);
-						in1.high();
-						Thread.sleep(speed);
-						in2.low();
-						Thread.sleep(speed);
-						in4.high();
-						Thread.sleep(speed);
-						in1.low();
+					switch (direction) {
+					case "fd":
+						robot.fd(distance, speed);
+						break;
+					case "lt":
+						robot.lt(distance, speed);
+						break;
+					case "rt":
+						robot.rt(distance, speed);
+						break;
+
+					default:
+						break;
 					}
-
-					// Make sure all inputs are off after we send the signal
-					in1.low();
-					in2.low();
-					in3.low();
-					in4.low();
 				}
 
 				response = "LOGO commands successfully executed";
@@ -160,11 +121,9 @@ public class LOGOServer {
 				// If a number is received, toggle the pin with that number
 				int lastSemiColon = input.lastIndexOf(";");
 				String pinNumber = input.substring(0, lastSemiColon);
-				GpioPinDigitalOutput pin = getPin(Integer.parseInt(pinNumber));
+				robot.toggle(Integer.parseInt(pinNumber));
 
-				pin.toggle();
-
-				response = pin.getName() + " toggled successfully";
+				response = pinNumber + " toggled successfully";
 				System.out.println(response);
 			} else if (input.matches("^exit;x$")) {
 				// If the word "exit" is received, set listen to false which
@@ -175,15 +134,7 @@ public class LOGOServer {
 			} else if (input.matches("^ping;x$")) {
 				// If the word "ping" is received, turn all pins on for 1
 				// second, then turn them all off. Send a response to the client
-				in1.high();
-				in2.high();
-				in3.high();
-				in4.high();
-				Thread.sleep(1000);
-				in1.low();
-				in2.low();
-				in3.low();
-				in4.low();
+				robot.execute(new PingSequence(), 1000);
 
 				response = "pong";
 			} else {
