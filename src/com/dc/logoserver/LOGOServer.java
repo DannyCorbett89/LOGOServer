@@ -88,7 +88,7 @@ public class LOGOServer {
 			String response;
 			System.out.println("Input: " + input);
 
-			if (input.matches("^((fd|rt|lt) [0-9]+;)+x$")) {
+			if (input.matches("^((fd|rt|lt) [0-9]+;)+$")) {
 				int lastSemiColon = input.lastIndexOf(";");
 				String[] commands = input.substring(0, lastSemiColon).split(";");
 
@@ -117,7 +117,7 @@ public class LOGOServer {
 				}
 
 				response = "LOGO commands successfully executed";
-			} else if (input.matches("^[0-9]{1,2};x$")) {
+			} else if (input.matches("^[0-9]{1,2};$")) {
 				// If a number is received, toggle the pin with that number
 				int lastSemiColon = input.lastIndexOf(";");
 				String pinNumber = input.substring(0, lastSemiColon);
@@ -125,13 +125,13 @@ public class LOGOServer {
 
 				response = pinNumber + " toggled successfully";
 				System.out.println(response);
-			} else if (input.matches("^exit;x$")) {
+			} else if (input.matches("^exit;$")) {
 				// If the word "exit" is received, set listen to false which
 				// will break the loop, send the response, and then exit the
 				// program
 				listen = false;
 				response = "Exiting";
-			} else if (input.matches("^ping;x$")) {
+			} else if (input.matches("^ping;$")) {
 				// If the word "ping" is received, turn all pins on for 1
 				// second, then turn them all off. Send a response to the client
 				robot.execute(new PingSequence(), 1000);
