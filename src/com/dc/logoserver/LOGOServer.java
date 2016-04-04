@@ -1,12 +1,19 @@
 package com.dc.logoserver;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.net.ServerSocket;
-import java.net.Socket;
+
+import javax.bluetooth.DiscoveryAgent;
+import javax.bluetooth.LocalDevice;
+import javax.bluetooth.UUID;
+import javax.microedition.io.Connector;
+import javax.microedition.io.StreamConnection;
+import javax.microedition.io.StreamConnectionNotifier;
 
 import com.dc.logoserver.robot.LOGORobot;
 import com.dc.logoserver.robot.PrintRobot;
@@ -18,7 +25,6 @@ import com.dc.logoserver.robot.pinstates.StartupSequence;
  * Server Application. Listens to commands from the client and processes them
  */
 public class LOGOServer {
-	protected ServerSocket serverSocket;
 	protected Robot robot;
 
 	/**
@@ -29,8 +35,8 @@ public class LOGOServer {
 	 * @throws IOException
 	 *             If there is a problem opening the port
 	 */
-	public LOGOServer(int port) throws IOException {
-		this(port, true);
+	public LOGOServer() throws IOException {
+		this(true);
 	}
 
 	/**
@@ -44,9 +50,11 @@ public class LOGOServer {
 	 * @throws IOException
 	 *             If there is a problem opening the port
 	 */
-	public LOGOServer(int port, boolean useRobot) throws IOException {
-		serverSocket = new ServerSocket(port);
-		System.out.println("Opening socket on port " + port);
+	public LOGOServer(boolean useRobot) throws IOException {
+		LocalDevice localDevice = LocalDevice.getLocalDevice();
+		System.out.println("Address: " + localDevice.getBluetoothAddress());
+		System.out.println("Name: " + localDevice.getFriendlyName());
+		localDevice.setDiscoverable(DiscoveryAgent.GIAC);
 
 		if (useRobot) {
 			robot = new LOGORobot();
@@ -73,18 +81,25 @@ public class LOGOServer {
 		robot.execute(new StartupSequence(), 500);
 
 		while (listen) {
-			Socket connection = serverSocket.accept();
+			// Create a UUID for SPP
+			UUID uuid = new UUID("04c6032b00004000800000805f9b34fc", false);
+			// Create the servicve url
+			String connectionString = "btspp://localhost:" + uuid + ";name=Sample SPP Server";
 
-			BufferedInputStream is = new BufferedInputStream(connection.getInputStream());
-			InputStreamReader isr = new InputStreamReader(is);
-			StringBuffer process = new StringBuffer();
-			int character;
+			// open server url
+			StreamConnectionNotifier streamConnNotifier = (StreamConnectionNotifier) Connector.open(connectionString);
 
-			while ((character = isr.read()) != 13) {
-				process.append((char) character);
-			}
+			// Wait for client connection
+			System.out.println("\nServer Started. Waiting for clients to connect...");
+			StreamConnection connection = streamConnNotifier.acceptAndOpen();
 
-			String input = process.toString().toLowerCase();
+			// read string from spp client
+			InputStream inStream = connection.openInputStream();
+			BufferedReader bReader = new BufferedReader(new InputStreamReader(inStream));
+			String input = bReader.readLine();
+
+			streamConnNotifier.close();
+
 			String response;
 			System.out.println("Input: " + input);
 
@@ -94,7 +109,7 @@ public class LOGOServer {
 
 				for (String command : commands) {
 					System.out.println("Executing command: " + command);
-					int speed = 2;
+					int speed = 1;
 					String[] parts = command.split(" ");
 					int distance = Integer.parseInt(parts[1]) * 10;
 
@@ -141,26 +156,14 @@ public class LOGOServer {
 				response = "Invalid input: " + input;
 			}
 
-			BufferedOutputStream os = new BufferedOutputStream(connection.getOutputStream());
-			OutputStreamWriter osw = new OutputStreamWriter(os);
-			osw.write(response + (char) 13);
-			osw.flush();
+			OutputStream os = connection.openOutputStream();
+			BufferedWriter bWriter = new BufferedWriter(new OutputStreamWriter(os));
+			bWriter.write(response + "\r\n");
 		}
-
-		serverSocket.close();
 	}
 
 	public static void main(String[] args) throws IOException, InterruptedException {
-		int port;
-
-		// Port defaults to 83, but allow it to be passed in as an argument
-		if (args.length == 0) {
-			port = 83;
-		} else {
-			port = Integer.parseInt(args[0]);
-		}
-
-		LOGOServer server = new LOGOServer(port);
+		LOGOServer server = new LOGOServer(false);
 		server.start();
 	}
 }

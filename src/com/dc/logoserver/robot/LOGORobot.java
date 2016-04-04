@@ -12,10 +12,12 @@ import com.pi4j.io.gpio.GpioPinDigitalOutput;
 public class LOGORobot implements Robot {
 	protected Motor leftMotor;
 	protected Motor rightMotor;
+	protected int turnMultiplier;
 
 	public LOGORobot() {
-		leftMotor = new Motor(22, 26, 24, 25);
-		rightMotor = new Motor(23, 27, 28, 29);
+		leftMotor = new Motor(1, 4, 5, 6);
+		rightMotor = new Motor(3, 2, 0, 7);
+		turnMultiplier = 4;
 	}
 
 	@Override
@@ -53,7 +55,7 @@ public class LOGORobot implements Robot {
 		Sequence left = new ForwardSequence();
 		Sequence right = new BackwardSequence();
 
-		for (int x = 0; x < degrees; x++) {
+		for (int x = 0; x < degrees * turnMultiplier; x++) {
 			left.step(leftMotor);
 			right.step(rightMotor);
 			Thread.sleep(speed);
@@ -68,7 +70,7 @@ public class LOGORobot implements Robot {
 		Sequence left = new BackwardSequence();
 		Sequence right = new ForwardSequence();
 
-		for (int x = 0; x < degrees; x++) {
+		for (int x = 0; x < degrees * turnMultiplier; x++) {
 			left.step(leftMotor);
 			right.step(rightMotor);
 			Thread.sleep(speed);
