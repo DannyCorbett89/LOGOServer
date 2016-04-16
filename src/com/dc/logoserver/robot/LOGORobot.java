@@ -12,12 +12,20 @@ import com.pi4j.io.gpio.GpioPinDigitalOutput;
 public class LOGORobot implements Robot {
 	protected Motor leftMotor;
 	protected Motor rightMotor;
+	protected int fdMultiplier;
 	protected int turnMultiplier;
 
 	public LOGORobot() {
 		leftMotor = new Motor(1, 4, 5, 6);
 		rightMotor = new Motor(3, 2, 0, 7);
-		turnMultiplier = 4;
+
+		// Multiply the distance so that "fd 1" moves forward one centimetre
+		// 4100 is one complete turn of the wheel
+		// 300 is 1cm
+		fdMultiplier = 300;
+
+		// Multiply the distance so the "lt 1" and "rt 1" rotate by 1 degree
+		turnMultiplier = 37;
 	}
 
 	@Override
@@ -40,7 +48,7 @@ public class LOGORobot implements Robot {
 		Sequence left = new ForwardSequence();
 		Sequence right = new ForwardSequence();
 
-		for (int x = 0; x < distance; x++) {
+		for (int x = 0; x < distance * fdMultiplier; x++) {
 			left.step(leftMotor);
 			right.step(rightMotor);
 			Thread.sleep(speed);

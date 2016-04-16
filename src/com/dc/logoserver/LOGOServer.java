@@ -1,24 +1,10 @@
 package com.dc.logoserver;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-
-import javax.bluetooth.DiscoveryAgent;
-import javax.bluetooth.LocalDevice;
-import javax.bluetooth.UUID;
-import javax.microedition.io.Connector;
-import javax.microedition.io.StreamConnection;
-import javax.microedition.io.StreamConnectionNotifier;
-
 import com.dc.logoserver.robot.LOGORobot;
 import com.dc.logoserver.robot.PrintRobot;
 import com.dc.logoserver.robot.Robot;
 import com.dc.logoserver.robot.pinstates.PingSequence;
+import com.dc.logoserver.robot.pinstates.ShutdownSequence;
 import com.dc.logoserver.robot.pinstates.StartupSequence;
 
 /**
@@ -26,113 +12,63 @@ import com.dc.logoserver.robot.pinstates.StartupSequence;
  */
 public class LOGOServer {
 	protected Robot robot;
+	protected InputReceiver receiver;
 
-	/**
-	 * Creates a new Socket on the specified port
-	 * 
-	 * @param port
-	 *            Port to be opened
-	 * @throws IOException
-	 *             If there is a problem opening the port
-	 */
-	public LOGOServer() throws IOException {
-		this(true);
+	public void setRobot(Robot robot) {
+		this.robot = robot;
 	}
 
-	/**
-	 * Creates a new Socket on the specified port
-	 * 
-	 * @param port
-	 *            Port to be opened
-	 * @param useRobot
-	 *            Switches between sending commands to the robot, or printing
-	 *            them out to the screen
-	 * @throws IOException
-	 *             If there is a problem opening the port
-	 */
-	public LOGOServer(boolean useRobot) throws IOException {
-		LocalDevice localDevice = LocalDevice.getLocalDevice();
-		System.out.println("Address: " + localDevice.getBluetoothAddress());
-		System.out.println("Name: " + localDevice.getFriendlyName());
-		localDevice.setDiscoverable(DiscoveryAgent.GIAC);
+	public void setReceiver(InputReceiver receiver) {
+		this.receiver = receiver;
+	}
 
-		if (useRobot) {
+	public InputReceiver getReceiver() {
+		return receiver;
+	}
+
+	public void start() throws Exception {
+		if (robot == null) {
 			robot = new LOGORobot();
-		} else {
-			robot = new PrintRobot();
 		}
-	}
 
-	/**
-	 * Starts listening on the specified port. Will flash all pins to show that
-	 * it is working, then will wait for a command from the client
-	 * 
-	 * @throws InterruptedException
-	 *             If there is a problem when pausing the program between pin
-	 *             flashes
-	 * @throws IOException
-	 *             If there is a problem reading from the socket
-	 */
-	public void start() throws InterruptedException, IOException {
+		if (receiver == null) {
+			throw new Exception("No InputReceiver defined");
+		}
+
 		boolean listen = true;
 
 		// Turn each pin on, then turn each pin off, to show they are all
 		// connected properly
-		robot.execute(new StartupSequence(), 500);
+		robot.execute(new StartupSequence(), 200);
 
 		while (listen) {
-			// Create a UUID for SPP
-			UUID uuid = new UUID("04c6032b00004000800000805f9b34fc", false);
-			// Create the servicve url
-			String connectionString = "btspp://localhost:" + uuid + ";name=Sample SPP Server";
-
-			// open server url
-			StreamConnectionNotifier streamConnNotifier = (StreamConnectionNotifier) Connector.open(connectionString);
-
-			// Wait for client connection
-			System.out.println("\nServer Started. Waiting for clients to connect...");
-			StreamConnection connection = streamConnNotifier.acceptAndOpen();
-
-			// read string from spp client
-			InputStream inStream = connection.openInputStream();
-			BufferedReader bReader = new BufferedReader(new InputStreamReader(inStream));
-			String input = bReader.readLine();
-
-			streamConnNotifier.close();
+			System.out.println("Enter Command: ");
+			String input = receiver.receiveInput();
 
 			String response;
-			System.out.println("Input: " + input);
 
-			if (input.matches("^((fd|rt|lt) [0-9]+;)+$")) {
-				int lastSemiColon = input.lastIndexOf(";");
-				String[] commands = input.substring(0, lastSemiColon).split(";");
+			if (input.matches("^([;]?(fd|rt|lt) [0-9]+)+$")) {
+				String[] commands = input.split(";");
 
 				for (String command : commands) {
 					System.out.println("Executing command: " + command);
 					int speed = 1;
 					String[] parts = command.split(" ");
-					int distance = Integer.parseInt(parts[1]) * 10;
+					int distance = Integer.parseInt(parts[1]);
 
 					String direction = parts[0];
 
-					switch (direction) {
-					case "fd":
+					if (direction.equals("fd")) {
 						robot.fd(distance, speed);
-						break;
-					case "lt":
+					} else if (direction.equals("lt")) {
 						robot.lt(distance, speed);
-						break;
-					case "rt":
+					} else if (direction.equals("rt")) {
 						robot.rt(distance, speed);
-						break;
-
-					default:
-						break;
 					}
 				}
 
 				response = "LOGO commands successfully executed";
-			} else if (input.matches("^[0-9]{1,2};$")) {
+			} else if (input.matches("^[0-9]{1,2}$")) {
 				// If a number is received, toggle the pin with that number
 				int lastSemiColon = input.lastIndexOf(";");
 				String pinNumber = input.substring(0, lastSemiColon);
@@ -140,13 +76,16 @@ public class LOGOServer {
 
 				response = pinNumber + " toggled successfully";
 				System.out.println(response);
-			} else if (input.matches("^exit;$")) {
+			} else if (input.matches("^exit$")) {
 				// If the word "exit" is received, set listen to false which
 				// will break the loop, send the response, and then exit the
 				// program
 				listen = false;
 				response = "Exiting";
-			} else if (input.matches("^ping;$")) {
+
+				// Visual confirmation of shutdown
+				robot.execute(new ShutdownSequence(), 200);
+			} else if (input.matches("^ping$")) {
 				// If the word "ping" is received, turn all pins on for 1
 				// second, then turn them all off. Send a response to the client
 				robot.execute(new PingSequence(), 1000);
@@ -156,14 +95,43 @@ public class LOGOServer {
 				response = "Invalid input: " + input;
 			}
 
-			OutputStream os = connection.openOutputStream();
-			BufferedWriter bWriter = new BufferedWriter(new OutputStreamWriter(os));
-			bWriter.write(response + "\r\n");
+			System.out.println();
 		}
+
+		receiver.close();
 	}
 
-	public static void main(String[] args) throws IOException, InterruptedException {
-		LOGOServer server = new LOGOServer(false);
+	public static void main(String[] args) throws Exception {
+		LOGOServer server = new LOGOServer();
+
+		for (int x = 0; x < args.length; x++) {
+			if (args[x].equals("-wifi")) {
+				server.setReceiver(new WifiInputReceiver());
+			} else if (args[x].equals("-bluetooth")) {
+				server.setReceiver(new BluetoothInputReceiver());
+			} else if (args[x].equals("-print")) {
+				server.setRobot(new PrintRobot());
+			}
+		}
+
+		if (server.getReceiver() == null) {
+			server.setReceiver(new KeyboardInputReceiver());
+		}
+
+		// Port needs to be checked last, regardless of which order the
+		// arguments are in, so that the WifiInputReceiver has definitely
+		// already been set
+		for (int x = 0; x < args.length; x++) {
+			if (args[x].equals("-port")) {
+				InputReceiver receiver = server.getReceiver();
+
+				if (receiver instanceof WifiInputReceiver) {
+					int port = Integer.parseInt(args[++x]);
+					((WifiInputReceiver) receiver).setPort(port);
+				}
+			}
+		}
+
 		server.start();
 	}
 }

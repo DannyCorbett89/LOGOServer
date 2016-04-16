@@ -68,7 +68,9 @@ public abstract class Sequence {
 		try {
 			sequence = getClass().newInstance();
 			sequence.setRepeat(repeat);
-		} catch (IllegalAccessException | InstantiationException e) {
+		} catch (InstantiationException e) {
+			e.printStackTrace();
+		} catch (IllegalAccessException e) {
 			e.printStackTrace();
 		}
 
